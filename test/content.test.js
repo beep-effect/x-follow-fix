@@ -25,6 +25,17 @@ const HEADER_NO_FOLLOW = `
     <div data-testid="placementTracking"><div><div>Click to Follow visegrad24</div></div></div>
   </div>`;
 
+const CELL = (handle, extra = "") => `
+  <div data-testid="UserCell"><div><div class="avatar"></div><div class="col">
+    <div class="namerow">
+      <div class="name"><a href="/${handle}">Name</a><span>@${handle}</span></div>
+      <div class="slot"></div>
+      <div style="display:none">Click to Follow ${handle}</div>
+      ${extra}
+    </div>
+    <div class="bio">bio</div>
+  </div></div></div>`;
+
 test("injects a native-looking intent link into placementTracking when Follow is missing", () => {
   const { api, doc, loc } = load("https://x.com/visegrad24", HEADER_NO_FOLLOW);
   const r = api.inject(doc, loc);
@@ -95,6 +106,14 @@ test("does not inject when a native follow or unfollow control is present, and r
   }
 });
 
+test("does not inject when X's hidden label says Unfollow (already following, button not rendered)", () => {
+  const body = HEADER_NO_FOLLOW.replace("Click to Follow visegrad24", "Click to Unfollow visegrad24");
+  const { api, doc, loc } = load("https://x.com/visegrad24", body + CELL("JayinKyiv").replace("Click to Follow JayinKyiv", "Click to Unfollow JayinKyiv"));
+  assert.equal(api.inject(doc, loc).reason, "already-following");
+  assert.equal(api.injectCells(doc).injected, 0);
+  assert.equal(doc.querySelectorAll("[data-xfix-follow]").length, 0);
+});
+
 test("waits when the header anchor is missing instead of injecting elsewhere", () => {
   const { api, doc, loc } = load("https://x.com/visegrad24", "<div>loading</div>");
   assert.equal(api.inject(doc, loc).action, "wait");
@@ -116,17 +135,6 @@ test("clones a native Follow button elsewhere on the page when one exists", () =
   // The native sidebar button must still count as native, and ours must not.
   assert.equal(doc.querySelectorAll('[data-testid$="-follow"]').length, 1);
 });
-
-const CELL = (handle, extra = "") => `
-  <div data-testid="UserCell"><div><div class="avatar"></div><div class="col">
-    <div class="namerow">
-      <div class="name"><a href="/${handle}">Name</a><span>@${handle}</span></div>
-      <div class="slot"></div>
-      <div style="display:none">Click to Follow ${handle}</div>
-      ${extra}
-    </div>
-    <div class="bio">bio</div>
-  </div></div></div>`;
 
 test("injects a 32px cell link into the empty slot of user cells lacking Follow", () => {
   const { api, doc } = load("https://x.com/visegrad24/followers", CELL("JayinKyiv") + CELL("Libertarec", '<button data-testid="5-unfollow">Following</button>'));

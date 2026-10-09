@@ -58,7 +58,8 @@ It injects only when all of these hold:
 - the header action cluster exists (`[data-testid="userActions"]`),
 - there is no `[data-testid="editProfileButton"]` (not your own profile),
 - there is no native `[data-testid$="-follow"]` or `[data-testid$="-unfollow"]`
-  in the header row.
+  in the header row,
+- X's hidden slot label does not read "Click to Unfollow".
 
 The button is an `<a>` tagged `data-xfix-follow="header"`, mounted inside
 `[data-testid="placementTracking"]`, the empty wrapper where X's own Follow
@@ -93,12 +94,11 @@ alone.
   and the `<id>-follow` / `<id>-unfollow` test ids were verified on
   2026-10-09. If X renames them the button stops appearing, and nothing
   else happens.
-- User cells (followers, following, search, the "You might like" sidebar)
-  are best-effort. When X drops the Follow button there it also drops
-  "Following", so the extension cannot tell which of those accounts you
-  already follow and adds the link to every cell that has X's hidden
-  "Click to Follow" label. X's own sheet after the click is the source of
-  truth.
+- Follow state comes from X's own hidden label in the button slot:
+  "Click to Follow HANDLE" means you do not follow the account and
+  "Click to Unfollow HANDLE" means you do. Only the first gets a button, in
+  the header and in user cells. If X ever changes that label text the
+  extension stops injecting rather than guessing.
 
 ## Manual test plan
 

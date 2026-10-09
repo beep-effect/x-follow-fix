@@ -31,8 +31,12 @@
     cellMarker: `[${MARKER}="cell"]`,
   };
   const INTENT_BASE = "https://x.com/intent/follow?screen_name=";
-  // X leaves this hidden label where the Follow button should be.
+  // X leaves a hidden label where the Follow button should be. It reads
+  // "Click to Follow HANDLE" when you do not follow the account and
+  // "Click to Unfollow HANDLE" when you do, so it carries the follow state
+  // even when the button itself fails to render (verified 2026-10-09).
   const HIDDEN_LABEL = /^Click to Follow (\w{1,15})$/;
+  const HIDDEN_UNFOLLOW = /^Click to Unfollow (\w{1,15})$/;
 
   // Native x.com Follow tokens, verified 2026-10-09 against a live button.
   const TOKENS = {
@@ -87,6 +91,15 @@
       if (m) return { el, handle: m[1] };
     }
     return null;
+  }
+
+  // True when X's hidden label says you already follow this account.
+  function alreadyFollowing(scope) {
+    for (const el of scope.querySelectorAll("div, span")) {
+      if (el.children.length) continue;
+      if (HIDDEN_UNFOLLOW.test((el.textContent || "").trim())) return true;
+    }
+    return false;
   }
 
   // ----------------------------------------------------------- the button
@@ -193,6 +206,7 @@
     if (!row) return { action: "wait", reason: "no-header" };
     if (doc.querySelector(SEL.editProfile)) return { action: "remove", reason: "own-profile" };
     if (nativeFollowControls(row).length > 0) return { action: "remove", reason: "native-present" };
+    if (alreadyFollowing(row)) return { action: "remove", reason: "already-following" };
     return { action: "inject", reason: "missing", handle, row };
   }
 
@@ -242,9 +256,8 @@
   // Followers, following, search results, and the "You might like" sidebar
   // render [data-testid="UserCell"]. When X drops the Follow button there it
   // leaves the empty slot and the hidden "Click to Follow HANDLE" label.
-  // Best-effort: without a native control we cannot tell whether you already
-  // follow that account, so the link appears on every such cell and X's own
-  // sheet is the source of truth after the click.
+  // The hidden label distinguishes "Click to Follow" (inject) from
+  // "Click to Unfollow" (you already follow; leave alone).
 
   function cellHandle(cell) {
     const hidden = hiddenLabel(cell);
@@ -268,7 +281,7 @@
     const result = { injected: 0, removed: 0, kept: 0 };
     for (const cell of doc.querySelectorAll(SEL.cell)) {
       const ours = cell.querySelector(SEL.cellMarker);
-      if (nativeFollowControls(cell).length > 0) {
+      if (nativeFollowControls(cell).length > 0 || alreadyFollowing(cell)) {
         if (ours) { ours.remove(); result.removed++; }
         continue;
       }
