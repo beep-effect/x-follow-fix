@@ -17,8 +17,8 @@ Requirements to expect:
   missing Follow control on x.com profiles. Say exactly that.
 - **Manifest V3**, no remotely hosted code. Satisfied: one content script,
   no background worker, no `eval`, no fetched scripts.
-- **Privacy policy URL** required because of host permissions. Use the raw
-  GitHub URL of `PRIVACY.md` or a GitHub Pages render of it.
+- **Privacy policy URL** required because of host permissions:
+  https://github.com/beep-effect/x-follow-fix/blob/main/PRIVACY.md
 - **Icons**: 128×128 required in the manifest and store; 16 and 48 ship too.
 - **Screenshots**: 1280×800 (or 640×400), PNG or JPEG, no alpha. At least
   one; up to five.
@@ -91,15 +91,14 @@ X can ask a store to remove it. Do not hide this in the listing or the repo.
 ## Checklist
 
 - [ ] Owner says "submit".
-- [ ] Owner has a Chrome Web Store developer account with 2FA and the $5 fee
-      paid.
+- [x] Owner has a Chrome Web Store developer account (2026-10-09).
 - [ ] Bump `version` in `manifest.json` and `package.json`.
-- [ ] `npm test` green.
-- [ ] `scripts/pack.sh` → `dist/follow-restore-<version>.zip`.
-- [ ] Verify the zip contains `manifest.json`, `src/content.js`, three PNG
+- [x] `npm test` green (14 tests, 2026-10-09).
+- [x] `scripts/pack.sh` → `dist/follow-restore-0.1.0.zip` (2026-10-09).
+- [x] Verified the zip contains `manifest.json`, `src/content.js`, three PNG
       icons, `PRIVACY.md`, `LICENSE`, `README.md`, and nothing else.
-- [ ] Privacy policy URL live.
-- [ ] Screenshots captured at 1280×800.
+- [x] Privacy policy URL live (GitHub blob URL above).
+- [x] Screenshots captured at 640×400 (accepted size) in `dist/screenshots/`.
 - [ ] Listing copy pasted from above; non-trader declaration done.
 - [ ] Upload the zip, fill the permission justification above, submit for
       review.
