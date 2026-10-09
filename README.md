@@ -60,7 +60,7 @@ It injects only when all of these hold:
 - there is no native `[data-testid$="-follow"]` or `[data-testid$="-unfollow"]`
   in the header row.
 
-The button is an `<a>` tagged `data-xfix-follow="1"`, mounted inside
+The button is an `<a>` tagged `data-xfix-follow="header"`, mounted inside
 `[data-testid="placementTracking"]`, the empty wrapper where X's own Follow
 sits (last in the row, right of the `···` menu). It carries no `-follow`
 test id, so the native-present check ignores it. When a real Follow button
@@ -77,6 +77,11 @@ own tokens, verified against a live Follow button:
 Chirp 15px / 20px, weight 700, radius 9999px, height 36px, padding 0 16px.
 Theme follows `color-scheme` on `<html>` and `prefers-color-scheme`.
 
+User cells get the same treatment at 32px, tagged `data-xfix-follow="cell"`,
+mounted in the empty slot X leaves before its hidden "Click to Follow HANDLE"
+label. Cells that still render a native Follow or Following control are left
+alone.
+
 ## Limitations
 
 - The intent is X's confirmation step, not a silent follow. You click Follow
@@ -88,8 +93,12 @@ Theme follows `color-scheme` on `<html>` and `prefers-color-scheme`.
   and the `<id>-follow` / `<id>-unfollow` test ids were verified on
   2026-10-09. If X renames them the button stops appearing, and nothing
   else happens.
-- User cells in followers, following, and search lists are not handled in
-  this version. The same approach applies there and is the next step.
+- User cells (followers, following, search, the "You might like" sidebar)
+  are best-effort. When X drops the Follow button there it also drops
+  "Following", so the extension cannot tell which of those accounts you
+  already follow and adds the link to every cell that has X's hidden
+  "Click to Follow" label. X's own sheet after the click is the source of
+  truth.
 
 ## Manual test plan
 
@@ -106,6 +115,9 @@ Theme follows `color-scheme` on `<html>` and `prefers-color-scheme`.
 - Chrome and Brave, loaded unpacked.
 - A rate-limited or logged-out account: the sheet may error or ask for
   sign-in. That is X, not a bug in this extension.
+- A followers or following list where cells have no Follow button. Each
+  cell gets a 32px link in the button slot; cells with a native control do
+  not.
 
 ## Development
 

@@ -1,7 +1,8 @@
 // Follow Restore — content script.
 //
-// Puts a Follow control back on x.com profile headers when X does not render
-// one. The control is a plain link to X's documented follow web intent:
+// Puts a Follow control back on x.com profile headers and user cells when X
+// does not render one. The control is a plain link to X's documented follow
+// web intent:
 //   https://x.com/intent/follow?screen_name=HANDLE
 // It never calls an API, never reads cookies, never follows on your behalf.
 //
@@ -24,9 +25,14 @@
     editProfile: '[data-testid="editProfileButton"]',
     follow: '[data-testid$="-follow"]',
     unfollow: '[data-testid$="-unfollow"]',
+    cell: '[data-testid="UserCell"]',
     marker: `[${MARKER}]`,
+    headerMarker: `[${MARKER}="header"]`,
+    cellMarker: `[${MARKER}="cell"]`,
   };
   const INTENT_BASE = "https://x.com/intent/follow?screen_name=";
+  // X leaves this hidden label where the Follow button should be.
+  const HIDDEN_LABEL = /^Click to Follow (\w{1,15})$/;
 
   // Native x.com Follow tokens, verified 2026-10-09 against a live button.
   const TOKENS = {
@@ -34,6 +40,7 @@
     dark: { bg: "#eff3f4", fg: "#0f1419", hover: "#d7dbdc" },
     font: 'TwitterChirp, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
   };
+  const SIZE = { header: "36px", cell: "32px" };
 
   // ---------------------------------------------------------------- helpers
 
@@ -60,7 +67,7 @@
     return !!(view && view.matchMedia && view.matchMedia("(prefers-color-scheme: dark)").matches);
   }
 
-  // Native follow controls on the page, ignoring our own node.
+  // Native follow controls in scope, ignoring our own nodes.
   function nativeFollowControls(scope) {
     return Array.from(scope.querySelectorAll(`${SEL.follow}, ${SEL.unfollow}`)).filter(
       (el) => !el.hasAttribute(MARKER) && !el.closest(SEL.marker)
@@ -72,17 +79,28 @@
     return actions ? actions.parentElement : null;
   }
 
+  // Finds X's hidden "Click to Follow HANDLE" label inside `scope`.
+  function hiddenLabel(scope) {
+    for (const el of scope.querySelectorAll("div, span")) {
+      if (el.children.length) continue;
+      const m = HIDDEN_LABEL.exec((el.textContent || "").trim());
+      if (m) return { el, handle: m[1] };
+    }
+    return null;
+  }
+
   // ----------------------------------------------------------- the button
 
   function applyFallbackStyle(a, doc) {
     const t = isDark(doc) ? TOKENS.dark : TOKENS.light;
+    const size = SIZE[a.dataset.xfixVariant] || SIZE.header;
     const keepMb = a.style.marginBottom, keepMt = a.style.marginTop; // row alignment, see matchRowMargins
     a.removeAttribute("class");
     a.style.cssText = [
       "display:inline-flex", "align-items:center", "justify-content:center",
-      "box-sizing:border-box", "min-width:36px", "height:36px", "padding:0 16px",
+      "box-sizing:border-box", `min-width:${size}`, `height:${size}`, "padding:0 16px",
       "border-radius:9999px", "border:1px solid transparent", "text-decoration:none",
-      "cursor:pointer", "user-select:none", "outline-style:none",
+      "cursor:pointer", "user-select:none", "outline-style:none", "white-space:nowrap",
       `font-family:${TOKENS.font}`, "font-size:15px", "line-height:20px", "font-weight:700",
       `background-color:${t.bg}`, `color:${t.fg}`, "transition:background-color .2s",
     ].join(";");
@@ -112,7 +130,7 @@
   }
 
   // Build from a cloned native Follow button so X's own CSS drives the look.
-  function buildFromClone(native, handle, doc) {
+  function buildFromClone(native, doc, variant) {
     const a = doc.createElement("a");
     a.className = native.className;
     for (const child of Array.from(native.childNodes)) a.appendChild(child.cloneNode(true));
@@ -128,9 +146,9 @@
     const nativeLabel = (span && span.textContent.trim()) || "Follow";
     if (span) span.textContent = nativeLabel;
     a.dataset.xfixLabel = nativeLabel;
-    // Header size. Cloned sidebar/cell buttons are 32px; the header is 36px.
-    a.style.height = "36px";
-    a.style.minHeight = "36px";
+    const size = SIZE[variant];
+    a.style.height = size;
+    a.style.minHeight = size;
     a.style.paddingLeft = "16px";
     a.style.paddingRight = "16px";
     a.style.textDecoration = "none";
@@ -141,22 +159,24 @@
     return a;
   }
 
-  function buildFallback(handle, doc) {
+  function buildFallback(doc) {
     const a = doc.createElement("a");
     const span = doc.createElement("span");
     span.textContent = "Follow";
     a.appendChild(span);
     a.dataset.xfixLabel = "Follow";
     a.dataset.xfixSource = "fallback";
-    applyFallbackStyle(a, doc);
-    attachHoverHandlers(a);
     return a;
   }
 
-  function buildButton(handle, doc) {
+  function buildButton(handle, doc, variant = "header") {
     const sample = doc.querySelector(SEL.follow);
-    const a = sample && !sample.hasAttribute(MARKER) ? buildFromClone(sample, handle, doc) : buildFallback(handle, doc);
-    a.setAttribute(MARKER, "1");
+    const a = sample && !sample.hasAttribute(MARKER) && !sample.closest(SEL.marker)
+      ? buildFromClone(sample, doc, variant)
+      : buildFallback(doc);
+    a.dataset.xfixVariant = variant;
+    if (a.dataset.xfixSource === "fallback") { applyFallbackStyle(a, doc); attachHoverHandlers(a); }
+    a.setAttribute(MARKER, variant);
     a.setAttribute("href", intentUrl(handle));
     a.setAttribute("rel", "noopener");
     a.setAttribute("aria-label", `Follow @${handle}`);
@@ -164,7 +184,7 @@
     return a;
   }
 
-  // ------------------------------------------------------------- decision
+  // ------------------------------------------------------ profile header
 
   function decide(doc, loc) {
     const handle = profileHandle(loc);
@@ -177,7 +197,7 @@
   }
 
   function removeInjected(doc) {
-    for (const el of doc.querySelectorAll(SEL.marker)) el.remove();
+    for (const el of doc.querySelectorAll(SEL.headerMarker)) el.remove();
   }
 
   // Siblings in the header row carry margins (12px bottom in a flex-end row).
@@ -191,7 +211,7 @@
     if (cs.marginTop) a.style.marginTop = cs.marginTop;
   }
 
-  function mountPoint(row, doc) {
+  function mountPoint(row) {
     const placement = row.querySelector(SEL.placement);
     if (placement && nativeFollowControls(placement).length === 0) return { parent: placement, before: null };
     return { parent: row, before: null };
@@ -201,7 +221,7 @@
     const d = decide(doc, loc);
     if (d.action === "remove") { removeInjected(doc); return d; }
     if (d.action === "wait") return d;
-    const existing = doc.querySelector(SEL.marker);
+    const existing = doc.querySelector(SEL.headerMarker);
     const wantSource = doc.querySelector(SEL.follow) ? "clone" : "fallback";
     if (existing && existing.getAttribute("href") === intentUrl(d.handle) && existing.dataset.xfixSource === wantSource
         && d.row.contains(existing)) {
@@ -210,28 +230,92 @@
       return { ...d, action: "kept" };
     }
     removeInjected(doc);
-    const a = buildButton(d.handle, doc);
-    const { parent, before } = mountPoint(d.row, doc);
+    const a = buildButton(d.handle, doc, "header");
+    const { parent, before } = mountPoint(d.row);
     parent.insertBefore(a, before);
     matchRowMargins(a, doc);
     return { ...d, node: a };
+  }
+
+  // ---------------------------------------------------------- user cells
+  //
+  // Followers, following, search results, and the "You might like" sidebar
+  // render [data-testid="UserCell"]. When X drops the Follow button there it
+  // leaves the empty slot and the hidden "Click to Follow HANDLE" label.
+  // Best-effort: without a native control we cannot tell whether you already
+  // follow that account, so the link appears on every such cell and X's own
+  // sheet is the source of truth after the click.
+
+  function cellHandle(cell) {
+    const hidden = hiddenLabel(cell);
+    if (hidden) return hidden.handle;
+    const link = cell.querySelector('a[href^="/"]');
+    if (!link) return null;
+    const parts = link.getAttribute("href").split("/").filter(Boolean);
+    return parts.length === 1 && /^[A-Za-z0-9_]{1,15}$/.test(parts[0]) && !RESERVED.has(parts[0].toLowerCase()) ? parts[0] : null;
+  }
+
+  function cellMountPoint(cell) {
+    const hidden = hiddenLabel(cell);
+    if (!hidden) return null;
+    // X's layout: [name block][empty slot][hidden label]. The slot precedes the label.
+    const slot = hidden.el.previousElementSibling;
+    if (slot && slot.children.length === 0 && !slot.textContent.trim()) return slot;
+    return hidden.el.parentElement;
+  }
+
+  function injectCells(doc) {
+    const result = { injected: 0, removed: 0, kept: 0 };
+    for (const cell of doc.querySelectorAll(SEL.cell)) {
+      const ours = cell.querySelector(SEL.cellMarker);
+      if (nativeFollowControls(cell).length > 0) {
+        if (ours) { ours.remove(); result.removed++; }
+        continue;
+      }
+      const handle = cellHandle(cell);
+      if (!handle) continue;
+      if (ours) {
+        if (ours.getAttribute("href") === intentUrl(handle)) {
+          if (ours.dataset.xfixSource === "fallback") applyFallbackStyle(ours, doc);
+          result.kept++;
+          continue;
+        }
+        ours.remove();
+      }
+      const mount = cellMountPoint(cell);
+      if (!mount) continue;
+      mount.appendChild(buildButton(handle, doc, "cell"));
+      result.injected++;
+    }
+    return result;
+  }
+
+  function cellsPending(doc) {
+    let n = 0;
+    for (const cell of doc.querySelectorAll(SEL.cell)) {
+      if (!cell.querySelector(SEL.cellMarker) && nativeFollowControls(cell).length === 0 && hiddenLabel(cell)) n++;
+    }
+    return n;
   }
 
   // ------------------------------------------------------------- runtime
 
   function start(doc, win) {
     let timer = 0;
-    let lastHref = "";
     let lastKey = "";
     const run = () => {
       timer = 0;
       const href = win.location.href;
       const row = headerRow(doc);
-      const key = [href, !!row, !!doc.querySelector(SEL.editProfile), row ? nativeFollowControls(row).length : -1,
-        !!doc.querySelector(SEL.marker), !!doc.querySelector(SEL.follow), doc.documentElement.style.colorScheme].join("|");
-      if (key === lastKey && href === lastHref) return; // gated: nothing changed
-      lastKey = key; lastHref = href;
+      const key = [
+        href, !!row, !!doc.querySelector(SEL.editProfile), row ? nativeFollowControls(row).length : -1,
+        !!doc.querySelector(SEL.headerMarker), !!doc.querySelector(SEL.follow),
+        doc.documentElement.style.colorScheme, cellsPending(doc), doc.querySelectorAll(SEL.cellMarker).length,
+      ].join("|");
+      if (key === lastKey) return; // gated: nothing relevant changed
+      lastKey = key;
       inject(doc, win.location);
+      injectCells(doc);
     };
     const schedule = () => { if (!timer) timer = win.setTimeout(run, 150); };
     const mo = new win.MutationObserver(schedule);
@@ -242,7 +326,7 @@
     return { stop: () => { mo.disconnect(); win.removeEventListener("popstate", schedule); } };
   }
 
-  const api = { profileHandle, intentUrl, decide, inject, buildButton, start, MARKER, RESERVED };
+  const api = { profileHandle, intentUrl, decide, inject, injectCells, buildButton, start, MARKER, RESERVED };
   root.__followRestore = api;
   if (typeof document !== "undefined" && typeof window !== "undefined" && !root.__followRestoreNoAutostart) {
     start(document, window);

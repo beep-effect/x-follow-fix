@@ -29,7 +29,7 @@ test("injects a native-looking intent link into placementTracking when Follow is
   const { api, doc, loc } = load("https://x.com/visegrad24", HEADER_NO_FOLLOW);
   const r = api.inject(doc, loc);
   assert.equal(r.action, "inject");
-  const node = doc.querySelector("[data-xfix-follow]");
+  const node = doc.querySelector('[data-xfix-follow="header"]');
   assert.ok(node, "injected node exists");
   assert.equal(node.tagName, "A");
   assert.equal(node.getAttribute("href"), "https://x.com/intent/follow?screen_name=visegrad24");
@@ -88,7 +88,7 @@ test("does not inject when a native follow or unfollow control is present, and r
   for (const tid of ["123-follow", "123-unfollow"]) {
     const body = HEADER_NO_FOLLOW.replace("<div>Click to Follow visegrad24</div>", `<button data-testid="${tid}">x</button>`);
     const { api, doc, loc } = load("https://x.com/visegrad24", body);
-    doc.getElementById("row").insertAdjacentHTML("beforeend", '<a data-xfix-follow="1" href="#">stale</a>');
+    doc.getElementById("row").insertAdjacentHTML("beforeend", '<a data-xfix-follow="header" href="#">stale</a>');
     const r = api.inject(doc, loc);
     assert.equal(r.reason, "native-present", tid);
     assert.equal(doc.querySelector("[data-xfix-follow]"), null, "stale node removed");
@@ -115,6 +115,43 @@ test("clones a native Follow button elsewhere on the page when one exists", () =
   assert.equal(node.getAttribute("href"), "https://x.com/intent/follow?screen_name=visegrad24");
   // The native sidebar button must still count as native, and ours must not.
   assert.equal(doc.querySelectorAll('[data-testid$="-follow"]').length, 1);
+});
+
+const CELL = (handle, extra = "") => `
+  <div data-testid="UserCell"><div><div class="avatar"></div><div class="col">
+    <div class="namerow">
+      <div class="name"><a href="/${handle}">Name</a><span>@${handle}</span></div>
+      <div class="slot"></div>
+      <div style="display:none">Click to Follow ${handle}</div>
+      ${extra}
+    </div>
+    <div class="bio">bio</div>
+  </div></div></div>`;
+
+test("injects a 32px cell link into the empty slot of user cells lacking Follow", () => {
+  const { api, doc } = load("https://x.com/visegrad24/followers", CELL("JayinKyiv") + CELL("Libertarec", '<button data-testid="5-unfollow">Following</button>'));
+  const r = api.injectCells(doc);
+  assert.equal(r.injected, 1, "only the cell without a native control");
+  const node = doc.querySelector('[data-xfix-follow="cell"]');
+  assert.equal(node.getAttribute("href"), "https://x.com/intent/follow?screen_name=JayinKyiv");
+  assert.equal(node.parentElement.className, "slot", "mounted in the empty slot before the hidden label");
+  assert.equal(node.style.height, "32px");
+  assert.equal(node.getAttribute("aria-label"), "Follow @JayinKyiv");
+  assert.equal(api.injectCells(doc).kept, 1, "idempotent");
+  assert.equal(doc.querySelectorAll("[data-xfix-follow]").length, 1);
+});
+
+test("cell links do not count as header nodes and header logic ignores them", () => {
+  const { api, doc, loc } = load("https://x.com/visegrad24", HEADER_NO_FOLLOW + CELL("JayinKyiv"));
+  api.injectCells(doc);
+  const r = api.inject(doc, loc);
+  assert.equal(r.action, "inject");
+  assert.equal(doc.querySelectorAll('[data-xfix-follow="header"]').length, 1);
+  assert.equal(doc.querySelectorAll('[data-xfix-follow="cell"]').length, 1);
+  // Navigating away removes the header node but leaves cells to X's own re-render.
+  const away = load("https://x.com/home", doc.body.innerHTML);
+  away.api.inject(away.doc, away.loc);
+  assert.equal(away.doc.querySelectorAll('[data-xfix-follow="header"]').length, 0);
 });
 
 test("profileHandle rejects reserved and invalid segments", () => {
