@@ -1,0 +1,18 @@
+{
+  "manifest_version": 3,
+  "name": "Follow Restore",
+  "version": "0.1.0",
+  "description": "Puts the Follow button back on x.com profiles where the header hides it.",
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://x.com/*", "https://twitter.com/*"],
+      "js": ["src/content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
