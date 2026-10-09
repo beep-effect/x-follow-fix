@@ -76,6 +76,7 @@
 
   function applyFallbackStyle(a, doc) {
     const t = isDark(doc) ? TOKENS.dark : TOKENS.light;
+    const keepMb = a.style.marginBottom, keepMt = a.style.marginTop; // row alignment, see matchRowMargins
     a.removeAttribute("class");
     a.style.cssText = [
       "display:inline-flex", "align-items:center", "justify-content:center",
@@ -85,6 +86,8 @@
       `font-family:${TOKENS.font}`, "font-size:15px", "line-height:20px", "font-weight:700",
       `background-color:${t.bg}`, `color:${t.fg}`, "transition:background-color .2s",
     ].join(";");
+    if (keepMb) a.style.marginBottom = keepMb;
+    if (keepMt) a.style.marginTop = keepMt;
     a.dataset.xfixBg = t.bg;
     a.dataset.xfixHover = t.hover;
     const label = a.querySelector("span") || a;
@@ -203,6 +206,7 @@
     if (existing && existing.getAttribute("href") === intentUrl(d.handle) && existing.dataset.xfixSource === wantSource
         && d.row.contains(existing)) {
       if (wantSource === "fallback") applyFallbackStyle(existing, doc);
+      matchRowMargins(existing, doc);
       return { ...d, action: "kept" };
     }
     removeInjected(doc);

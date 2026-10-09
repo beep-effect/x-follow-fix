@@ -55,6 +55,16 @@ test("is idempotent: a second inject keeps the single existing node", () => {
   assert.equal(doc.querySelectorAll("[data-xfix-follow]").length, 1);
 });
 
+test("re-styling on a kept pass preserves the row margins", () => {
+  const { api, doc, loc } = load("https://x.com/visegrad24", HEADER_NO_FOLLOW);
+  doc.querySelector('[data-testid="userActions"]').style.marginBottom = "12px";
+  api.inject(doc, loc);
+  const node = doc.querySelector("[data-xfix-follow]");
+  assert.equal(node.style.marginBottom, "12px");
+  api.inject(doc, loc);
+  assert.equal(node.style.marginBottom, "12px", "cssText reset must not drop the margin");
+});
+
 test("does not inject on /home", () => {
   const { api, doc, loc } = load("https://x.com/home", HEADER_NO_FOLLOW);
   const r = api.inject(doc, loc);
